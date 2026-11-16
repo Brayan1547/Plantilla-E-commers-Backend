@@ -44,6 +44,14 @@ const dbUpdateCategoryById = async (id, categoryUpdate) => {
     );
 }
 
+const dbSetCategoryImage = async (id, image) => {
+    return await CategoryModel.findOneAndUpdate({ _id: id }, { $set: { image } }, { new: true });
+}
+
+const dbClearCategoryImage = async (id) => {
+    return await CategoryModel.findOneAndUpdate({ _id: id }, { $unset: { image: "" } }, { new: true });
+}
+
 const dbDeleteCategoryById = async (id) => {
     return await CategoryModel.findOneAndDelete(
         {_id: id}
@@ -57,5 +65,7 @@ export {
     dbGetPublicCategories,
     dbGetPublicCategoryById,
     dbUpdateCategoryById,
-    dbDeleteCategoryById
+    dbDeleteCategoryById,
+    dbSetCategoryImage,
+    dbClearCategoryImage
 }

@@ -26,6 +26,12 @@ const CategorySchema = new Schema({
         type: Boolean,
         default: true
     },
+        // Imagen de portada (home). Se gestiona SOLO por POST/DELETE /category/:id/image,
+    // por eso NO está en CATEGORY_UPDATABLE_FIELDS (el cliente no puede escribir URLs a mano).
+    image: {
+        url: { type: String, trim: true },
+        publicId: { type: String, trim: true }
+    },
     // Propiedad agregada para rastrear qué usuario creó la categoría
     // createdBy: {
     //     type: Schema.Types.ObjectId,

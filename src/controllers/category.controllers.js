@@ -5,12 +5,24 @@ import {
     dbGetPublicCategories,
     dbGetPublicCategoryById,
     dbUpdateCategoryById,
+    dbSetCategoryImage,
+    dbClearCategoryImage,
     dbDeleteCategoryById
  } from "../services/category.service.js";
 import { dbProductsUseCategory } from "../services/product.services.js";
 import { CATEGORY_UPDATABLE_FIELDS, ROLES } from "../config/global.config.js";
 import { isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
 import { sendWriteError } from "../helpers/writeError.helper.js";
+import { cloudinaryImageService } from "../services/cloudinaryImage.service.js";
+import {
+    MAX_IMAGE_DIMENSION_PX,
+    MIN_IMAGE_DIMENSION_PX,
+    detectImageSignature,
+    extensionMatchesFormat,
+    multerErrorMessage,
+    parseSingleImageUpload,
+    readImageDimensions,
+} from "../helpers/imageUpload.helper.js";
 
 // F7-C — mismo conjunto de roles "admin-capable" que `product.controllers.js`
 // (duplicado a propósito, no importado desde ahí: son controllers hermanos
@@ -147,6 +159,87 @@ const updateCategoryById = async (req, res) => {
     }
 }
 
+// POST /category/:id/image — sube/reemplaza la imagen de portada de la categoría.
+const uploadCategoryImage = async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({ msg: "El ID de la categoría no es válido" });
+        }
+        const category = await dbGetCategoryById(id);
+        if (!category) {
+            return res.status(404).json({ msg: "La categoría no se encuentra registrada" });
+        }
+
+        try {
+            await parseSingleImageUpload(req, res);
+        } catch (uploadErr) {
+            return res.status(400).json({ msg: multerErrorMessage(uploadErr) });
+        }
+        if (!req.file) {
+            return res.status(400).json({ msg: "Debes seleccionar un archivo de imagen." });
+        }
+
+        const format = detectImageSignature(req.file.buffer);
+        if (!format || !extensionMatchesFormat(req.file.originalname, format)) {
+            return res.status(400).json({ msg: "Tipo de archivo no permitido. Usa JPEG, PNG o WEBP." });
+        }
+        const dims = readImageDimensions(req.file.buffer, format);
+        if (!dims) {
+            return res.status(400).json({ msg: "El archivo de imagen está dañado o no se pudo procesar." });
+        }
+        if (dims.width < MIN_IMAGE_DIMENSION_PX || dims.height < MIN_IMAGE_DIMENSION_PX) {
+            return res.status(400).json({ msg: `La imagen es demasiado pequeña (mínimo ${MIN_IMAGE_DIMENSION_PX}x${MIN_IMAGE_DIMENSION_PX} píxeles).` });
+        }
+        if (dims.width > MAX_IMAGE_DIMENSION_PX || dims.height > MAX_IMAGE_DIMENSION_PX) {
+            return res.status(400).json({ msg: `La imagen supera las dimensiones máximas permitidas (${MAX_IMAGE_DIMENSION_PX}x${MAX_IMAGE_DIMENSION_PX} píxeles).` });
+        }
+
+        let uploaded;
+        try {
+            uploaded = await cloudinaryImageService.upload(req.file.buffer, "categories");
+        } catch (cloudErr) {
+            console.error(`uploadCategoryImage -> cloudinary failed: ${cloudErr && cloudErr.name}`);
+            return res.status(502).json({ msg: "No fue posible subir la imagen. Inténtalo nuevamente." });
+        }
+
+        const oldPublicId = category.image?.publicId;
+        let data;
+        try {
+            data = await dbSetCategoryImage(id, { url: uploaded.url, publicId: uploaded.publicId });
+        } catch (dbErr) {
+            await cloudinaryImageService.destroy(uploaded.publicId); // evita huérfanos
+            throw dbErr;
+        }
+        if (oldPublicId) await cloudinaryImageService.destroy(oldPublicId); // best-effort
+
+        res.json({ msg: "Imagen de categoría actualizada", data });
+    } catch (error) {
+        return sendWriteError(res, error, "imagen de la categoría");
+    }
+}
+
+// DELETE /category/:id/image — quita la imagen (el home vuelve a la imagen por defecto).
+const deleteCategoryImage = async (req, res) => {
+    try {
+        const id = req.params.id;
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({ msg: "El ID de la categoría no es válido" });
+        }
+        const category = await dbGetCategoryById(id);
+        if (!category) {
+            return res.status(404).json({ msg: "La categoría no se encuentra registrada" });
+        }
+        const publicId = category.image?.publicId;
+        const data = await dbClearCategoryImage(id);
+        if (publicId) await cloudinaryImageService.destroy(publicId);
+        res.json({ msg: "Imagen de categoría eliminada", data });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ msg: "Ocurrio un error al eliminar la imagen" });
+    }
+}
+
 const deleteCategoryById = async (req, res) => {
     try {
         const id = req.params.id;
@@ -166,6 +259,7 @@ const deleteCategoryById = async (req, res) => {
         }
 
         const data = await dbDeleteCategoryById(id);
+        if (data?.image?.publicId) await cloudinaryImageService.destroy(data.image.publicId);
         res.json({
             msg: "Se elimina categoria por ID",
             data,
@@ -183,5 +277,7 @@ export {
     getCategory,
     getCategoryById,
     updateCategoryById,
-    deleteCategoryById
+    uploadCategoryImage,
+    deleteCategoryImage,
+    deleteCategoryById,
 }

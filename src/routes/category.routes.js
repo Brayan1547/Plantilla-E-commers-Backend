@@ -1,5 +1,5 @@
 import { Router  } from "express";
-import { createCategory, deleteCategoryById, getCategory, getCategoryById, updateCategoryById } from "../controllers/category.controllers.js";
+import { createCategory, deleteCategoryById, getCategory, getCategoryById, updateCategoryById, uploadCategoryImage, deleteCategoryImage } from "../controllers/category.controllers.js";
 import autenticationUser, { optionalAuthentication } from "../middleware/autentication.middleware.js";
 import authorizationUser from "../middleware/authorizationUser.middelware.js";
 
@@ -22,6 +22,10 @@ router.get('/:id', optionalAuthentication, getCategoryById);
 
 // Actualizar una categoría
 router.patch('/:id',autenticationUser, authorizationUser(['administrador', 'shop_manager']), updateCategoryById);
+
+// Imagen de portada de la categoría (Cloudinary)
+router.post('/:id/image', autenticationUser, authorizationUser(['administrador', 'shop_manager']), uploadCategoryImage);
+router.delete('/:id/image', autenticationUser, authorizationUser(['administrador', 'shop_manager']), deleteCategoryImage);
 
 // Eliminar una categoría
 router.delete('/:id',autenticationUser,  authorizationUser(['administrador', 'shop_manager']), deleteCategoryById);

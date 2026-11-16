@@ -24,6 +24,8 @@ const loginUser =  async (req, res) => {
     // el email en minusculas y sin espacios.
     const normalizedEmail = email.trim().toLowerCase();
 
+    console.log('LOGIN email recibido:', JSON.stringify(normalizedEmail));
+
     const userFound = await dbGetUserByIdEmail(normalizedEmail);
 
     if ( ! userFound) {

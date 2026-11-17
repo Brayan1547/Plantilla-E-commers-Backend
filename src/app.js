@@ -13,6 +13,8 @@ import cartRoutes from './routes/cart.routes.js'
 import orderRoutes from './routes/order.routes.js'
 import dashboardRoutes from './routes/dashboard.routes.js'
 
+import debtRoutes from './routes/debt.routes.js'      // junto a los otros import
+
 // App Express ya configurada, SIN abrir conexion a Mongo ni escuchar puerto.
 // El arranque real (conexion + listen) vive en index.js; asi los tests de
 // seguridad pueden montar la app contra una base de datos de prueba.
@@ -55,5 +57,7 @@ app.use('/api/cart',cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/roles',roleRoutes);
+
+app.use('/api/debts', debtRoutes);                    // junto a los otros app.use, antes de export default
 
 export default app;
